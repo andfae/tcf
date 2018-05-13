@@ -1,0 +1,347 @@
+{{response.files.append(URL('static','moment.min.js'))}}
+{{response.files.append(URL('static','fullcalendar.min.css'))}}
+{{response.files.append(URL('static','fullcalendar.print.min.css media="print"'))}}
+{{response.files.append(URL('static','scheduler.min.css'))}}
+{{response.files.append(URL('static','fullcalendar.min.js'))}}
+{{response.files.append(URL('static','it.js'))}}
+{{response.files.append(URL('static','scheduler.min.js'))}}
+{{extend 'layout.html'}}
+
+{{from datetime import datetime, timedelta}}
+
+<style>
+.fc-resource-cell {
+        font-size: 13px;
+}
+</style>
+
+<!-- {{for row in rowseventi:}}
+    {{=row.evento.titolo}}
+    <br>
+{{pass}} -->
+
+<script type="text/javascript">
+    var weekday = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+    // la riga seguente funziona lo stesso al posto di quella successiva 
+    {{=ASSIGNJS(data_evento_refresh=data_evento)}}
+
+    $(document).ready(function() { // document read
+
+        // stampa del calendario
+        $('.printBtn').on('click', function (){
+            window.print();
+        });
+        
+        // elimina la possibilità di usare il tasto destro del mouse
+        $('body').on('contextmenu', function(e){return false;});
+
+        // gestione dialog eliminazione evento singolo
+        $('#deleteModalSingle .modal-footer button').on('click', function(e) {
+            var target = $(e.target);
+            var eventId = $('#deleteModalSingle').data('event-id');
+            var tipoEvento = "singolo";
+            if (target[0].id != "btn-single-annulla") {
+                $.get('{{=URL('default', 'elimina_evento')}}',{tipoevento:tipoEvento,id_evento:eventId,tipo:target[0].id});
+            }
+        });
+        
+        // gestione dialog eliminazione evento ripetuto
+        $('#deleteModalRecurring .modal-footer button').on('click', function(e) {
+            var target = $(e.target);
+            var eventId = $('#deleteModalRecurring').data('event-id');
+            var tipoEvento = "ricorrente";
+            if (target[0].id != "btn-recurrent-annulla") {
+                $.get('{{=URL('default', 'elimina_evento')}}',{tipoevento:tipoEvento,id_evento:eventId,tipo:target[0].id});
+            }
+        });
+
+        $('#deleteModalSingle').on('shown.bs.modal', function () {
+            $('#btn-single-annulla').focus()
+        });
+
+        $('#deleteModalRecurring').on('shown.bs.modal', function () {
+            $('#btn-recurrent-annulla').focus()
+        });
+
+        $('#calendar').fullCalendar({
+            locale: 'it',
+			schedulerLicenseKey: 'GPL-My-Project-Is-Open-Source',
+            droppable: true, // this allows things to be dropped onto the calendar
+
+            // Triggered when dragging stops and the event has moved to a different day/time.
+            eventDrop: function(event, delta, revertFunc) {
+                 console.log(event);
+                // se l'elenco è ricorrente o non sei sicuro di fare questa modifica fai il revert
+                if (!confirm("Sei sicuro di fare questa modifica?")) {
+                      revertFunc();
+                 }
+                else
+                {
+                    var start=moment(event.start).format('YYYY-MM-DD HH:mm:ss');
+                    var end=moment(event.end).format('YYYY-MM-DD HH:mm:ss');
+                    var id_evento =  event.id;
+                    var id_risorsa = event.resourceId
+                    $.get('{{=URL('default', 'sposta_evento')}}',{id_evento:id_evento,id_risorsa:id_risorsa,start:start,end:end});
+                }
+            },
+            
+            // Triggered when a new date-range is rendered, or when the view type switches.
+            viewRender: function(view,element){
+                // $('#calendar').fullCalendar('option', 'aspectRatio', 3);
+                var tipovista = view.name;
+                // alert("hai cambiato la vista " + tipovista);
+                // chiamo jquery e vario la vista della sessione scelta dall'utente
+                $.get('{{=URL('default', 'cambia_sessione_vista')}}',{tipovista:tipovista});
+            },
+            eventResize: function(event, delta, revertFunc) {
+                if (!confirm("Sei sicuro di fare questa modifica?")) {
+                      revertFunc();
+                 }
+                else
+                {
+                    var start=moment(event.start).format('YYYY-MM-DD HH:mm:ss');
+                    var end=moment(event.end).format('YYYY-MM-DD HH:mm:ss');
+                    var id_evento =  event.id;
+                    var id_risorsa = event.resourceId
+                    $.get('{{=URL('default', 'sposta_evento')}}',{id_evento:id_evento,id_risorsa:id_risorsa,start:start,end:end});
+                }
+            },
+            
+            // Triggered while an event is being rendered. A hook for modifying its DOM.
+            eventRender: function(event, element, view){
+                element.bind('mousedown', function (e) {
+//                    alert('sono qua');
+                    if (e.which == 3) {
+                        // console.log(event);
+                        if (parseInt(event.recurring) == 0) {
+                            // sto selezionando un evento singolo
+                            $("#deleteModalSingle").data("event-id", event.id);
+                            $('#deleteModalSingle').modal('show');
+                        } else {
+                            // sto selezionando un evento ripetuto
+                            // .data è Jquery
+                            $("#deleteModalRecurring").data("event-id", event.id);
+                            $('#deleteModalRecurring').modal('show');
+                        }
+                    }
+                });
+            },
+            // eventAfterAllRender: function(view) {
+            //     $('#calendar').fullCalendar('option', 'aspectRatio', 3);
+            // },
+            themeSystem:'standard',
+            // aspectRatio: 1.77,
+            height: "auto",
+            minTime: '08:00:00',
+            maxTime: '24:00:00',
+			navLinks: true,
+			selectable: true,
+			selectHelper: true,
+			eventOverlap: false, // will cause the event to take up entire resource height
+			selectOverlap: false,
+            nowIndicator: true,
+            weekNumbers: false,            
+            // allowCalEventOverlap:false,
+            select: function(start, end, event, ui, resource) {
+			    var tempo = end - start;
+                // se l'evento è minore di 1 ora e non non confermi deseleziono l'evento
+                if ((tempo < 3600000) && (!confirm("Sei sicuro di creare un evento minore i 1 ora?"))) {
+                    $('#calendar').fullCalendar('unselect');
+                 }
+                // altimenti creo l'evento
+                else
+                {
+                    // stabilisco a che ora inizia l'evento
+                    var ora=moment(start).format('HH:mm');
+                    // definisco il titolo di default dell'evento 
+                    var title = "prenotazione " + ora;
+                    var eventData;
+                    if (title) {
+                        eventData = {
+                                       resourceId: resource.id,
+                                       title: title,
+                                       start: start,
+                                       end: end
+                                    };
+                        var start=moment(eventData.start).format('YYYY-MM-DD HH:mm:ss');
+                        var end=moment(eventData.end).format('YYYY-MM-DD HH:mm:ss');
+                        var risorsa =  resource.id.toString();
+                        $('#myModal').modal('show');
+                        $.web2py.component("{{=URL('default', 'nuovo_evento.load')}}"+ "?titolo=" + title +"&risorsa=" + risorsa + "&start=" +start + "&end=" + end,"modulo-evento");
+                        $('#calendar').fullCalendar('unselect');
+                    }
+                }
+            },
+            resourceLabelText: 'Campi',
+			resourceAreaWidth: '10%',
+            allDayDefault: false,
+            header: {
+				left: 'today prev,next',
+				center: 'title',
+				right: 'agendaDay,agendaWeekDays,agendaWeek'
+			},
+            allDaySlot: false,
+			defaultView:'{{=session.vista}}',
+            validRange: {
+                start: '2018-03-01',
+                end: '2018-11-30'
+                },
+  			views: {
+				agendaDay: {
+					type: 'agenda',
+					duration: { days: 1 },
+                    titleFormat: 'ddd D MMMM YYYY',
+                    slotLabelFormat: 'HH:mm',
+					slotDuration: '00:30:00',
+                    scrollTime: '09:00:00',
+
+					// views that are more than a day will NOT do this behavior by default
+					// so, we need to explicitly enable it
+					//groupByResource: true
+
+					//// uncomment this line to group by day FIRST with resources underneath
+					//groupByDateAndResource: true
+				},
+				agendaWeekDays: {
+					type: 'agenda',
+                    dateAlignment: 'week',
+					duration: { days: 5 },
+                    titleFormat: 'ddd D MMMM YYYY',
+                    slotLabelFormat: 'HH:mm',
+					slotDuration: '00:30:00',
+                    scrollTime: '09:00:00',
+                    buttonText: '5 giorni',
+                    
+					// views that are more than a day will NOT do this behavior by default
+					// so, we need to explicitly enable it
+					//groupByResource: true
+
+					//// uncomment this line to group by day FIRST with resources underneath
+					groupByDateAndResource: true
+				},
+                agendaWeek: {
+					type: 'agenda',
+                    dateAlignment: 'week',
+					duration: { days: 7 },
+                    titleFormat: 'ddd D MMMM YYYY',
+                    slotLabelFormat: 'HH:mm',
+					slotDuration: '00:30:00',
+                    scrollTime: '09:00:00',
+                    
+					// views that are more than a day will NOT do this behavior by default
+					// so, we need to explicitly enable it
+					//groupByResource: true
+
+					//// uncomment this line to group by day FIRST with resources underneath
+					groupByDateAndResource: true
+				}
+			},
+			resources: [
+				{{for row in rowsrisorse:}}
+                   {
+                         id: '{{=row.id}}',
+                         title: '{{=row.nome}}'
+                   },
+                {{pass}}
+                ],
+			editable: true,
+			eventLimit: true, // allow "more" link when too many events
+			events: [
+                {{for row in rowseventi:}}
+                   {
+                        title: '{{=row.evento.titolo}}',
+                        id: '{{=row.evento.id}}',
+                        resourceId: '{{=row.evento.risorsa}}',
+                        start: '{{=row.evento.inizio}}',
+                        end: '{{=row.evento.fine}}',
+                        recurring: '{{=row.evento.ricorrenza}}',
+                        // allDay: false,
+                        color : '{{=row.evento.colore}}',
+                        url: '{{=URL('mostra_evento',args=row.evento.id)}}',
+                   },
+                {{pass}}
+                ]
+		});
+        // questo if serve a riposizionare la data dello schedulatore dopo aver creato un evento
+        if (data_evento_refresh != null) {
+            $('#calendar').fullCalendar( 'gotoDate', data_evento_refresh)
+        }
+        else {
+            var momento = $('#calendar').fullCalendar('getDate');
+            $('#calendar').fullCalendar( 'gotoDate', momento)
+        }
+    });
+
+function hide_modal() {
+    $("#myModal").modal("hide");
+}
+    
+</script>
+
+<!-- Modal -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="myModalLabel">Nuova prenotazione</h4>
+      </div>
+      <div class="modal-body">
+        <div id='modulo-evento'>Attendere prego...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default btn-sm" data-dismiss="modal">Chiudi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteModalSingle" tabindex="-1" role="dialog" aria-labelledby="deleteModalSingleLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="deleteModalSingleLabel">Elimina prenotazione</h4>
+      </div>
+      <div class="modal-body">
+        <p>Vuoi eliminare questo evento?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal" id="btn-single-conferma-unico">Sì</button>
+        <button type="button" class="btn btn-primary" data-dismiss="modal" id="btn-single-annulla">Annulla</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteModalRecurring" tabindex="-1" role="dialog" aria-labelledby="deleteModalRecurringLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="deleteModalRecurringLabel">Elimina evento ricorrente</h4>
+      </div>
+      <div class="modal-body">
+        <p>Vuoi eliminare solo questo evento ripetuto?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal" id="btn-recurrent-conferma-unico">Sì</button>
+        <button type="button" class="btn btn-danger" data-dismiss="modal" id="btn-recurrent-conferma-tutti">Tutti</button>
+        <button type="button" class="btn btn-primary" data-dismiss="modal" id="btn-recurrent-annulla">Annulla</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-sm-10">
+      <h2>
+          Gestione prenotazioni
+      </h2>
+  </div>
+  <div class="col-sm-2">
+      <button class="printBtn hidden-print btn-sm">Stampa</button>
+  </div>
+</div>
+
+<div id='calendar'></div>

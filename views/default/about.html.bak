@@ -1,0 +1,7 @@
+{{extend 'layout.html'}}
+<h5>Copyright © 2018, Andrea Fae'</h5>
+
+<p>This program is an easy tennis court reservation system, written essentially using web2py framework, python and javascript.</p>
+
+<p>It's created using a GPL version of FullCalendar Scheduler (you can see
+    https://fullcalendar.io for information about this Javascript control).</p>
